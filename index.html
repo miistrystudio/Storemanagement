@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="MistryStudio — Simple stationery shop management app for products, inventory, and daily tracking.">
+  <title>MistryStudio — Stationery Management</title>
+  <link rel="stylesheet" href="css/index.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+
+  <div class="app-shell">
+
+    <!-- ========== SIDEBAR ========== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">M</div>
+        <div class="sidebar-brand">
+          <h1 data-i18n="appName">MistryStudio</h1>
+          <span data-i18n="appTagline">Stationery Manager</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label" data-i18n="menuLabel">MENU</div>
+
+        <div class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">📊</span>
+          <span data-i18n="navDashboard">Dashboard</span>
+        </div>
+        <div class="nav-item" data-view="products">
+          <span class="nav-icon">📦</span>
+          <span data-i18n="navProducts">Products</span>
+        </div>
+        <div class="nav-item" data-view="inventory">
+          <span class="nav-icon">🏪</span>
+          <span data-i18n="navInventory">Inventory</span>
+          <span class="nav-badge" id="inventoryNavBadge" style="display:none">0</span>
+        </div>
+        <div class="nav-item" data-view="daily">
+          <span class="nav-icon">📅</span>
+          <span data-i18n="navDaily">Daily Tracker</span>
+        </div>
+        <div class="nav-item" data-view="help">
+          <span class="nav-icon">❓</span>
+          <span data-i18n="navHelp">Help & Guide</span>
+        </div>
+
+        <div class="nav-section-label" data-i18n="dataLabel" style="margin-top:auto">DATA</div>
+        <div class="nav-item" id="exportBtn">
+          <span class="nav-icon">💾</span>
+          <span data-i18n="navExport">Export Data</span>
+        </div>
+        <div class="nav-item" id="importBtn">
+          <span class="nav-icon">📂</span>
+          <span data-i18n="navImport">Import Data</span>
+        </div>
+      </nav>
+      <input type="file" id="importFileInput" accept=".json" style="display:none">
+    </aside>
+
+    <div class="sidebar-overlay"></div>
+
+    <!-- ========== MAIN CONTENT ========== -->
+    <main class="main-content">
+
+      <!-- Top Bar -->
+      <header class="top-bar">
+        <div class="top-bar-left">
+          <button class="menu-toggle" id="menuToggle">☰</button>
+          <div>
+            <div class="page-title" id="pageTitle">Dashboard</div>
+            <div class="page-subtitle" id="pageSubtitle">Overview of your shop</div>
+          </div>
+        </div>
+        <div class="top-bar-right">
+          <div class="sync-status" id="syncBtn" title="Click to sync">
+            <span class="sync-dot offline" id="syncStatusDot"></span>
+            <span class="sync-text" id="syncStatusText">Offline</span>
+          </div>
+          <button class="btn btn-lang" id="langToggle" onclick="Lang.toggle()" title="Switch Language">ગુજ</button>
+          <span class="top-bar-date" id="topBarDate"></span>
+        </div>
+      </header>
+
+      <div class="page-content">
+
+        <!-- ===== DASHBOARD ===== -->
+        <section class="view active" id="view-dashboard">
+          <div class="grid-4 dashboard-stats">
+            <div class="stat-card">
+              <div class="stat-icon blue">📦</div>
+              <div class="stat-label" data-i18n="totalProducts">Total Products</div>
+              <div class="stat-value" id="statTotalProducts">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon amber">💰</div>
+              <div class="stat-label" data-i18n="stockValue">Stock Value</div>
+              <div class="stat-value" id="statStockValue">₹0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon green">🛒</div>
+              <div class="stat-label" data-i18n="todaySales">Today's Sales</div>
+              <div class="stat-value" id="statTodaySales">₹0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon purple">📈</div>
+              <div class="stat-label" data-i18n="todayProfit">Today's Profit</div>
+              <div class="stat-value" id="statTodayProfit">+₹0</div>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="chart-card">
+              <div class="chart-header">
+                <div>
+                  <div class="chart-title" data-i18n="revenueVsCost">Revenue vs Cost</div>
+                  <div class="chart-subtitle" data-i18n="last7Days">Last 7 days</div>
+                </div>
+              </div>
+              <div class="chart-container"><canvas id="revenueChart"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <div>
+                  <div class="chart-title" data-i18n="stockByCategory">Stock by Category</div>
+                  <div class="chart-subtitle" data-i18n="currentDist">Current distribution</div>
+                </div>
+              </div>
+              <div class="chart-container"><canvas id="categoryChart"></canvas></div>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-top:var(--space-lg)">
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title">⚠️ <span data-i18n="lowStockAlerts">Low Stock Alerts</span></div>
+              </div>
+              <div id="dashLowStock" class="low-stock-list"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title">⚡ <span data-i18n="quickActions">Quick Actions</span></div>
+              </div>
+              <div class="quick-actions">
+                <button class="quick-action-btn" id="qaAddProduct">
+                  <span class="qa-icon">➕</span>
+                  <span class="qa-label" data-i18n="addProduct">Add Product</span>
+                </button>
+                <button class="quick-action-btn" id="qaRecordSale">
+                  <span class="qa-icon">🛒</span>
+                  <span class="qa-label" data-i18n="recordSale">Record Sale</span>
+                </button>
+                <button class="quick-action-btn" id="qaViewInventory">
+                  <span class="qa-icon">📋</span>
+                  <span class="qa-label" data-i18n="viewInventory">View Inventory</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== PRODUCTS ===== -->
+        <section class="view" id="view-products">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <div class="search-bar">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="productSearch" data-i18n-placeholder="searchProducts"
+                  placeholder="Search products...">
+              </div>
+              <select class="form-select" id="categoryFilter" style="max-width:200px">
+                <option value="" data-i18n="allCategories">All Categories</option>
+              </select>
+              <span class="text-muted" id="productCount" style="font-size:var(--font-size-sm)"></span>
+            </div>
+            <div class="toolbar-right">
+              <button class="btn btn-secondary btn-sm" id="manageCategoriesBtn">🏷️ <span
+                  data-i18n="categories">Categories</span></button>
+              <button class="btn btn-primary" id="addProductBtn">+ <span data-i18n="addProduct">Add
+                  Product</span></button>
+            </div>
+          </div>
+
+          <div class="card" style="padding:0;overflow-x:auto">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th data-i18n="name">Name</th>
+                  <th data-i18n="category">Category</th>
+                  <th data-i18n="costPrice">Cost Price</th>
+                  <th data-i18n="sellPrice">Sell Price</th>
+                  <th data-i18n="margin">Margin</th>
+                  <th data-i18n="stock">Stock</th>
+                  <th data-i18n="status">Status</th>
+                  <th data-i18n="actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="productsTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="empty-state hidden" id="productsEmpty">
+            <div class="empty-icon">📦</div>
+            <h3 data-i18n="noProductsTitle">No products yet</h3>
+            <p data-i18n="noProductsDesc">Add your first product to get started.</p>
+            <button class="btn btn-primary btn-lg" onclick="Products.openModal()">+ <span
+                data-i18n="addFirstProduct">Add First Product</span></button>
+          </div>
+        </section>
+
+        <!-- ===== INVENTORY ===== -->
+        <section class="view" id="view-inventory">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <div class="search-bar">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="inventorySearch" data-i18n-placeholder="searchInventory"
+                  placeholder="Search inventory...">
+              </div>
+              <select class="form-select" id="stockFilter" style="max-width:200px">
+                <option value="" data-i18n="allItems">All Items</option>
+                <option value="low" data-i18n="filterLow">Low Stock</option>
+                <option value="out" data-i18n="filterOut">Out of Stock</option>
+                <option value="ok" data-i18n="filterOk">In Stock</option>
+              </select>
+            </div>
+            <div class="toolbar-right">
+              <span class="badge badge-amber" id="lowStockCount" style="font-size:13px;padding:6px 14px">0</span>
+            </div>
+          </div>
+
+          <div class="card" style="padding:0;overflow-x:auto">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th data-i18n="product">Product</th>
+                  <th data-i18n="category">Category</th>
+                  <th data-i18n="stock">Stock</th>
+                  <th data-i18n="unit">Unit</th>
+                  <th data-i18n="minStock">Min Stock</th>
+                  <th data-i18n="status">Status</th>
+                  <th data-i18n="action">Action</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="empty-state hidden" id="inventoryEmpty">
+            <div class="empty-icon">🏪</div>
+            <h3 data-i18n="noInventoryTitle">No items</h3>
+            <p data-i18n="noInventoryDesc">Add products first.</p>
+          </div>
+        </section>
+
+        <!-- ===== DAILY TRACKER ===== -->
+        <section class="view" id="view-daily">
+          <div class="daily-header">
+            <div class="date-nav">
+              <button class="btn btn-secondary btn-icon" id="prevDay">◀</button>
+              <span class="current-date" id="currentDateDisplay">Today</span>
+              <button class="btn btn-secondary btn-icon" id="nextDay">▶</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn btn-ghost btn-sm" id="todayBtn" style="display:none"
+                data-i18n="goToToday">Today</button>
+              <button class="btn btn-secondary" id="openCalendarBtn">📅 <span data-i18n="viewCalendar">View
+                  Calendar</span></button>
+              <button class="btn btn-primary" id="eodReportBtn">📋 <span data-i18n="eodReport">End of Day Report</span></button>
+            </div>
+          </div>
+
+          <div class="daily-summary">
+            <div class="summary-card">
+              <div class="summary-label" data-i18n="revenueLabel">Revenue</div>
+              <div class="summary-value text-green" id="dailyRevenue">₹0.00</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label" data-i18n="costsExpenses">Costs & Expenses</div>
+              <div class="summary-value text-red" id="dailyCost">₹0.00</div>
+            </div>
+            <div class="summary-card profit" id="profitCard">
+              <div class="summary-label" data-i18n="netProfit">Net Profit</div>
+              <div class="summary-value" id="dailyProfit">+₹0.00</div>
+            </div>
+          </div>
+
+          <div class="daily-columns">
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title">🛒 <span data-i18n="sales">Sales</span></div>
+                <button class="btn btn-primary btn-sm" id="addSaleBtn">+ <span data-i18n="addSale">Add
+                    Sale</span></button>
+              </div>
+              <div id="salesList" class="low-stock-list"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-header">
+                <div class="chart-title">💸 <span data-i18n="expenses">Expenses</span></div>
+                <button class="btn btn-secondary btn-sm" id="addExpenseBtn">+ <span data-i18n="addExpense">Add
+                    Expense</span></button>
+              </div>
+              <div id="expensesList" class="low-stock-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== HELP & GUIDE ===== -->
+        <section class="view" id="view-help">
+          <div class="help-container">
+            <div class="help-welcome card">
+              <h2 data-i18n="helpWelcome">Welcome to MistryStudio!</h2>
+              <p data-i18n="helpWelcomeDesc">This app helps you manage your stationery shop. Here is what each section
+                does:</p>
+            </div>
+
+            <div class="help-grid">
+              <div class="help-card card">
+                <h3 data-i18n="helpDashboardTitle">📊 Dashboard</h3>
+                <p data-i18n="helpDashboardDesc">See a quick summary of your shop — total products, stock value, today's
+                  sales, and profit.</p>
+              </div>
+              <div class="help-card card">
+                <h3 data-i18n="helpProductsTitle">📦 Products</h3>
+                <p data-i18n="helpProductsDesc">Add all your shop items here. Enter name, category, cost price, selling
+                  price, and stock.</p>
+              </div>
+              <div class="help-card card">
+                <h3 data-i18n="helpInventoryTitle">🏪 Inventory</h3>
+                <p data-i18n="helpInventoryDesc">Check which items are running low. Use + and − buttons to update stock
+                  quickly.</p>
+              </div>
+              <div class="help-card card">
+                <h3 data-i18n="helpDailyTitle">📅 Daily Tracker</h3>
+                <p data-i18n="helpDailyDesc">Record every sale and expense for each day. The app calculates profit
+                  automatically.</p>
+              </div>
+              <div class="help-card card">
+                <h3 data-i18n="helpCategoriesTitle">🏷️ Categories</h3>
+                <p data-i18n="helpCategoriesDesc">Go to Products → click "Categories" to add or remove categories.</p>
+              </div>
+              <div class="help-card card">
+                <h3 data-i18n="helpExportTitle">💾 Export / Import</h3>
+                <p data-i18n="helpExportDesc">Download a backup or restore from one. Always keep a backup!</p>
+              </div>
+            </div>
+
+            <div class="help-tip card">
+              <p data-i18n="helpTip">💡 Tip: Start by adding your categories, then add all products, and then record
+                daily sales!</p>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ===== MODALS ===== -->
+
+  <!-- Add/Edit Product -->
+  <div class="modal-overlay" id="productModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="productModalTitle" data-i18n="addNewProduct">Add New Product</h2>
+        <button class="modal-close" id="productModalClose">✕</button>
+      </div>
+      <form id="productForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" data-i18n="productName">Product Name</label>
+            <input class="form-input" type="text" id="prodName" data-i18n-placeholder="productNamePlaceholder"
+              placeholder="e.g. Reynolds Pen" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" data-i18n="category">Category</label>
+              <select class="form-select" id="prodCategory"></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="unit">Unit</label>
+              <select class="form-select" id="prodUnit">
+                <option value="pcs" data-i18n="pieces">Pieces</option>
+                <option value="box" data-i18n="box">Box</option>
+                <option value="pack" data-i18n="pack">Pack</option>
+                <option value="set" data-i18n="set">Set</option>
+                <option value="dz" data-i18n="dozen">Dozen</option>
+                <option value="kg" data-i18n="kg">Kg</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group" id="pcsPerUnitGroup" style="display:none">
+            <label class="form-label" data-i18n="pcsPerUnit">Pieces per Unit</label>
+            <input class="form-input" type="number" id="prodPcsPerUnit" min="1" value="1"
+              data-i18n-placeholder="pcsPerUnitPlaceholder" placeholder="e.g. 50 pens in 1 box">
+            <small class="form-hint" id="pcsPerUnitHint" style="color:var(--text-muted);font-size:12px;margin-top:4px;display:block"></small>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" data-i18n="costPrice">Cost Price (₹)</label>
+              <input class="form-input" type="number" id="prodCostPrice" step="0.01" min="0" placeholder="0.00">
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="sellPrice">Selling Price (₹)</label>
+              <input class="form-input" type="number" id="prodSellPrice" step="0.01" min="0" placeholder="0.00">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" data-i18n="currentStock">Current Stock</label>
+              <input class="form-input" type="number" id="prodStock" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="minStockAlert">Min Stock Alert</label>
+              <input class="form-input" type="number" id="prodMinStock" min="0" value="5">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" data-i18n="notes">Notes</label>
+            <input class="form-input" type="text" id="prodNotes" data-i18n-placeholder="notesPlaceholder"
+              placeholder="Optional notes...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="productModalCancel" data-i18n="cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" data-i18n="saveProduct">Save Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Category Manager -->
+  <div class="modal-overlay" id="categoryModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" data-i18n="manageCategories">Manage Categories</h2>
+        <button class="modal-close" id="categoryModalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;gap:8px">
+          <input class="form-input" type="text" id="newCategoryInput" data-i18n-placeholder="newCategoryPlaceholder"
+            placeholder="New category name..." style="flex:1">
+          <button class="btn btn-primary" id="addCategoryBtn" data-i18n="add">Add</button>
+        </div>
+        <div id="categoryList" class="low-stock-list" style="margin-top:16px;max-height:300px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Record Sale -->
+  <div class="modal-overlay" id="saleModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" data-i18n="recordSaleTitle">Record Sale</h2>
+        <button class="modal-close" id="saleModalClose">✕</button>
+      </div>
+      <form id="saleForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" data-i18n="product">Product</label>
+            <select class="form-select" id="saleProduct" required></select>
+          </div>
+          <div id="saleProductInfo" style="display:none;padding:10px 14px;background:rgba(99,179,237,0.08);border:1px solid rgba(99,179,237,0.18);border-radius:8px;margin-bottom:12px;font-size:13px;color:var(--text-secondary)">
+            <span id="saleInfoText"></span>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" data-i18n="quantity">Quantity</label>
+              <input class="form-input" type="number" id="saleQty" min="1" value="1">
+              <small id="saleQtyUnit" style="color:var(--text-muted);font-size:12px;margin-top:4px;display:none"></small>
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="price">Price (₹)</label>
+              <input class="form-input" type="number" id="salePrice" step="0.01" min="0" placeholder="0.00">
+              <small id="salePriceHint" style="color:var(--text-muted);font-size:12px;margin-top:4px;display:none"></small>
+            </div>
+          </div>
+          <div class="sale-total-display">
+            <span data-i18n="total">Total</span>: <span id="saleTotalDisplay">₹0.00</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="saleModalCancel" data-i18n="cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" data-i18n="recordSaleBtn">Record Sale</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Expense -->
+  <div class="modal-overlay" id="expenseModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" data-i18n="addExpenseTitle">Add Expense</h2>
+        <button class="modal-close" id="expenseModalClose">✕</button>
+      </div>
+      <form id="expenseForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" data-i18n="description">Description</label>
+            <input class="form-input" type="text" id="expenseDesc" data-i18n-placeholder="descPlaceholder"
+              placeholder="e.g. Electricity bill" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" data-i18n="amount">Amount (₹)</label>
+              <input class="form-input" type="number" id="expenseAmount" step="0.01" min="0" placeholder="0.00"
+                required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="expenseCategory">Category</label>
+              <select class="form-select" id="expenseCategory">
+                <option value="general" data-i18n="general">General</option>
+                <option value="rent" data-i18n="rent">Rent</option>
+                <option value="utilities" data-i18n="utilities">Utilities</option>
+                <option value="purchase" data-i18n="stockPurchase">Stock Purchase</option>
+                <option value="transport" data-i18n="transport">Transport</option>
+                <option value="salary" data-i18n="salary">Salary</option>
+                <option value="other" data-i18n="other">Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="expenseModalCancel" data-i18n="cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" data-i18n="addExpenseBtn">Add Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- End of Day Report Modal -->
+  <div class="modal-overlay" id="eodModal">
+    <div class="modal" style="max-width:700px">
+      <div class="modal-header">
+        <h2 class="modal-title">📋 <span data-i18n="eodReportTitle">End of Day Report</span></h2>
+        <button class="modal-close" id="eodModalClose">✕</button>
+      </div>
+      <div class="modal-body" id="eodReportBody" style="gap:0">
+        <!-- Report content generated by JS -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="eodPrintBtn">🖨️ <span data-i18n="printReport">Print Report</span></button>
+        <button type="button" class="btn btn-primary" id="eodCloseBtn" data-i18n="close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calendar Modal -->
+  <div class="modal-overlay" id="calendarModal">
+    <div class="modal" style="max-width:600px">
+      <div class="modal-header">
+        <h2 class="modal-title">📅 <span data-i18n="viewCalendar">View Calendar</span></h2>
+        <button class="modal-close" id="calendarModalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="cal-nav">
+          <button class="btn btn-secondary btn-icon" id="calPrevMonth">◀</button>
+          <span class="cal-month-label" id="calMonthLabel">May 2026</span>
+          <button class="btn btn-secondary btn-icon" id="calNextMonth">▶</button>
+        </div>
+        <div class="cal-legend">
+          <span class="cal-legend-item"><span class="cal-dot cal-dot-green"></span> <span
+              data-i18n="profit">Profit</span></span>
+          <span class="cal-legend-item"><span class="cal-dot cal-dot-red"></span> <span
+              data-i18n="loss">Loss</span></span>
+          <span class="cal-legend-item"><span class="cal-dot cal-dot-gray"></span> <span data-i18n="noData">No
+              Data</span></span>
+        </div>
+        <div class="cal-weekdays" id="calWeekdays"></div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-day-detail hidden" id="calDayDetail">
+          <div class="cal-detail-header">
+            <h3 id="calDetailDate"></h3>
+            <button class="btn btn-primary btn-sm" id="calGoToDay" data-i18n="openDay">Open this day</button>
+          </div>
+          <div class="cal-detail-stats" id="calDetailStats"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Dialog -->
+  <div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+      <h3 data-i18n="confirmTitle">Are you sure?</h3>
+      <p id="confirmMessage"></p>
+      <div class="confirm-actions">
+        <button class="btn btn-secondary" id="confirmNo" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-danger" id="confirmYes" data-i18n="confirmDelete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="js/lang.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/products.js"></script>
+  <script src="js/inventory.js"></script>
+  <script src="js/daily.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/app.js"></script>
+
+  <script>
+    document.getElementById('topBarDate').textContent = new Date().toLocaleDateString('en-IN', {
+      weekday: 'long', day: 'numeric', month: 'short', year: 'numeric'
+    });
+  </script>
+</body>
+
+</html>
